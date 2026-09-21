@@ -24,6 +24,7 @@ macOS only: it talks to `/usr/bin/security`.
 | `e` | Edit. The same form, with the group and the name filled in. An empty value field keeps the stored secret |
 | `d` | Delete, with a confirmation |
 | `/` | Filter by group or name. `esc` clears it |
+| `t` | Colour scheme. The list previews live; enter keeps it, esc puts the old one back |
 | `q` | Quit immediately |
 | `esc` | Clears an active filter, otherwise asks before quitting |
 
@@ -32,6 +33,36 @@ the edit form for that secret, `esc` goes back. Anything copied is wiped from th
 stops lingering there.
 
 `envsecret --list` prints group and name without the TUI, for scripts.
+
+## Colour schemes
+
+Press `t`. The list behind the panel is repainted in each scheme as you move
+through the names, so you are picking from the real thing. Enter keeps the
+highlighted one and writes it to `~/.config/envsecret/config`; esc puts back
+the one you started with.
+
+| | |
+|---|---|
+| `default` | Your terminal's own palette, no background painted |
+| `norton` | Norton Commander, 1986: cyan on blue, black on cyan bars |
+| `flipboard` | Solari split-flap board: matte black, white letters, amber cursor |
+| `tokyo-night` | Indigo ground, blue title bar |
+| `gruvbox` | Warm greys under a yellow title bar |
+| `dracula` | Purple title bar, green values |
+| `nord` | Cool greys, frost blue |
+| `solarized-dark` | The classic teal-black ground |
+| `phosphor` | Green CRT |
+| `amber` | The amber tube on the other side of the office |
+
+```sh
+envsecret --themes          # list them, marking the saved one
+envsecret --theme nord      # run in one without saving it
+```
+
+Each theme sets nine roles (body, dim, key, val, warn, head, foot, sel, zebra)
+as xterm-256 colours. On a terminal with fewer, every colour is folded down to
+the nearest one it does have, so the schemes still work over an 8-colour
+`TERM`. Adding one is a ten-line entry in `THEMES`.
 
 ## How items are stored
 
@@ -78,6 +109,14 @@ argument to `subprocess.run` in `write_value` is load-bearing.
 the terminal in cbreak, which leaves `IXON` set, so the line discipline eats `^s`
 as XOFF and the form's save key never reaches `getch`. `run` clears `IXON` on the
 way in and puts the saved attributes back on the way out.
+
+**Attributes are passed to `addstr`, never left on the window with
+`attron`.** A string holding any non-ASCII character goes out through curses'
+wide-character path, which ignores the window's colour and falls back to the
+background pair. This UI is full of `·`, so with a theme painting a background
+every such line came out in the body colours: the title bar and the cursor row
+lost their own. An attribute handed to `addstr` is applied to that write and
+survives the wide path.
 
 **Bottom-row writes clip to `w - 1`.** curses returns `ERR` for any write that
 reaches the terminal's last cell, which takes the whole TUI down. Any new
