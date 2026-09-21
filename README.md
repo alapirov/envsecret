@@ -21,13 +21,14 @@ macOS only: it talks to `/usr/bin/security`.
 | arrows or `j`/`k` | Move |
 | `enter` | Open the card, decrypting that one value |
 | `a` | Add. A form with a field each for group, name, and value. The value field is masked |
+| `e` | Edit. The same form, with the group and the name filled in. An empty value field keeps the stored secret |
 | `d` | Delete, with a confirmation |
 | `/` | Filter by group or name. `esc` clears it |
 | `q` | Quit immediately |
 | `esc` | Clears an active filter, otherwise asks before quitting |
 
-In a card: `c` copies to the clipboard, `r` hides or shows the value, `esc` goes
-back. Anything copied is wiped from the clipboard when you quit, so a secret
+In a card: `c` copies to the clipboard, `r` hides or shows the value, `e` opens
+the edit form for that secret, `esc` goes back. Anything copied is wiped from the clipboard when you quit, so a secret
 stops lingering there.
 
 `envsecret --list` prints group and name without the TUI, for scripts.
@@ -47,8 +48,16 @@ time, so there is no separate list to keep in sync. Naming a group that does not
 exist creates it; a group disappears when its last secret is deleted. In Keychain
 Access, search `envsecret` to see them all together.
 
-Names are normalised to `UPPER_SNAKE_CASE` on add, and an existing name is
-refused so you open it instead.
+Names are normalised to `UPPER_SNAKE_CASE`, and a name already in use is refused
+so you edit that item instead of shadowing it.
+
+**Editing is a rewrite, because `security` has no attribute editor.** A new value
+or a new group updates the item in place, since `-U` matches on account and
+service and the group lives in the label. A new name is a different item, so it
+is written under the new name first and the old one removed only once the new one
+is stored: an interrupted rename leaves the secret intact under its old name. The
+value is read back out of the keychain only when the value field is left empty,
+which is the one case where changing a group has to decrypt anything.
 
 ## Design notes
 
@@ -64,6 +73,11 @@ terminal exists and then ignores the pipe, printing `password data for new item:
 straight onto the curses screen and blocking on keystrokes. `start_new_session`
 leaves the child with no controlling terminal, so it falls back to stdin. That
 argument to `subprocess.run` in `write_value` is load-bearing.
+
+**The tty's flow control is cleared while the TUI runs.** `curses.wrapper` puts
+the terminal in cbreak, which leaves `IXON` set, so the line discipline eats `^s`
+as XOFF and the form's save key never reaches `getch`. `run` clears `IXON` on the
+way in and puts the saved attributes back on the way out.
 
 **Bottom-row writes clip to `w - 1`.** curses returns `ERR` for any write that
 reaches the terminal's last cell, which takes the whole TUI down. Any new
