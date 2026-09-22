@@ -1,0 +1,2 @@
+#!/bin/sh
+v=$(cat); echo "pbcopy len=${#v}" >> "$FAKE_LOG"

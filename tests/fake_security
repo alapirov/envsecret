@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+import sys, json, os, shlex
+ST=os.environ["FAKE_STORE"]; LOG=os.environ["FAKE_LOG"]
+def load(): return json.load(open(ST))
+def save(d): json.dump(d, open(ST,"w"))
+def log(*a):
+    with open(LOG,"a") as f: f.write(" ".join(a)+"\n")
+def opts(args):
+    o={}; i=0; pos=[]
+    while i<len(args):
+        a=args[i]
+        if a in ("-a","-s","-l","-j","-T","-w"):
+            o[a]=args[i+1] if i+1<len(args) else None; i+=2
+        elif a.startswith("-"): o[a]=True; i+=1
+        else: pos.append(a); i+=1
+    return o,pos
+def plain(v): return v.isascii() and v.isprintable() and '"' not in v and "\\" not in v
+def cmd(args, err):
+    d=load(); c=args[0]; o,pos=opts(args[1:])
+    if c=="dump-keychain":
+        if os.environ.get("FAKE_DUMP_FAIL"): return 0
+        for k,it in d.items():
+            print(f'keychain: "{pos[0] if pos else "x"}"\nversion: 512\nclass: "genp"\nattributes:\n    0x00000007 <blob>="{it["label"]}"\n    "acct"<blob>="{it["acct"]}"\n    "cdat"<timedate>=0x00 "{it["cdat"]}Z\\000"\n    "svce"<blob>="{k}"')
+        return 0
+    if c=="find-generic-password":
+        it=d.get(o["-s"])
+        if not it: err.write("security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n"); return 44
+        log("find",o["-s"])
+        v=it["value"]
+        err.write(f'password: "{v}"\n' if plain(v) else f'password: 0x{v.encode().hex().upper()}  "x"\n'); return 0
+    if c=="delete-generic-password":
+        if o["-s"] in d: del d[o["-s"]]; save(d); log("delete",o["-s"]); return 0
+        return 44
+    if c=="add-generic-password":
+        s=o["-s"]
+        if s in d and "-U" not in o:
+            err.write("security: SecKeychainItemCreateFromContent (x): The specified item already exists in the keychain.\n"); return 45
+        cdat=d[s]["cdat"] if s in d else "20260922120000"
+        d[s]={"label":o["-l"],"acct":o["-a"],"value":o["-w"],"cdat":cdat}; save(d); log("add",s,o["-l"],str(len(o["-w"])),"U" if "-U" in o else "new"); return 0
+    return 1
+if sys.argv[1]=="-i":
+    rc=0
+    for line in sys.stdin: rc=cmd(shlex.split(line), sys.stderr)
+    sys.exit(rc)
+sys.exit(cmd(sys.argv[1:], sys.stderr))
