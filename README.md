@@ -24,6 +24,7 @@ macOS only: it talks to `/usr/bin/security`.
 | `e` | Edit. The same form, with the group and the name filled in. An empty value field keeps the stored secret |
 | `d` | Delete, with a confirmation |
 | `/` | Filter by group or name. `esc` clears it |
+| `s` | Sort: group and name, then newest first, then oldest first |
 | `t` | Colour scheme. The list previews live; enter keeps it, esc puts the old one back |
 | `q` | Quit immediately |
 | `esc` | Clears an active filter, otherwise asks before quitting |
@@ -32,7 +33,26 @@ In a card: `c` copies to the clipboard, `r` hides or shows the value, `e` opens
 the edit form for that secret, `esc` goes back. Anything copied is wiped from the clipboard when you quit, so a secret
 stops lingering there.
 
-`envsecret --list` prints group and name without the TUI, for scripts.
+`envsecret --list` prints group, name and date without the TUI, for scripts,
+in whichever order is saved.
+
+## Columns
+
+| Column | |
+|---|---|
+| group | Blank where it repeats the row above, which happens in name order |
+| name | Clipped with `…` when the window is too narrow to hold it |
+| added | The date the item was created, `DD.MM.YYYY`, in local time |
+| value | Always masked here. Open the card to decrypt one |
+
+`s` cycles the order: group and name, newest first, oldest first. The header
+marks the column it is keyed to, `▴` ascending and `▾` descending, and the
+cursor stays on the secret it was on. The order is saved alongside the theme,
+and `--list` follows it.
+
+Sorting runs off the raw keychain stamp rather than the shown date, so the
+display format is free. Below 58 columns the date column gives way to the
+names.
 
 ## Colour schemes
 
@@ -73,6 +93,11 @@ Each secret is a generic password in the login keychain:
 | Label | `envsecret [group] NAME` |
 | Service (`-s`) | `NAME`, the variable name |
 | Account (`-a`) | `$USER` |
+
+The date in the `added` column is the keychain's own `cdat`, read from the same
+`dump-keychain` pass as the labels. Writing over an item with `-U` bumps `mdat`
+and leaves `cdat` alone, so editing a value keeps the date the secret was first
+stored. Renaming one stores a new item, and its date starts from there.
 
 **The keychain is the index.** Groups are parsed back out of the labels at call
 time, so there is no separate list to keep in sync. Naming a group that does not
