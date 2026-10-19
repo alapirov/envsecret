@@ -20,7 +20,7 @@ macOS only: it talks to `/usr/bin/security`.
 |---|---|
 | arrows or `j`/`k` | Move |
 | `enter` | Open the card, decrypting that one value |
-| `a` | Add. A form with a field each for group, name, and value. The value field is masked. Paste one line: a paste holding a line break or a tab is refused |
+| `a` | Add. A form with a field each for group, name, and value. The group is filled in from the row the cursor is on, so the form opens on the name. The value field is masked. Paste one line: a paste holding a line break or a tab is refused |
 | `e` | Edit. The same form, with the group and the name filled in. An empty value field keeps the stored secret |
 | `d` | Delete, with a confirmation |
 | `/` | Filter by group or name. `esc` clears it |
@@ -60,7 +60,6 @@ the message says so, and that copy is wiped on every way out of the TUI.
 | group | Blank where it repeats the row above, which happens in name order |
 | name | Clipped with `…` when the window is too narrow to hold it |
 | added | The date the item was created, `DD.MM.YYYY`, in local time |
-| value | Always masked here. Open the card to decrypt one |
 
 `s` cycles the order: group and name, newest first, oldest first. The header
 marks the column it is keyed to, `▴` ascending and `▾` descending, and the

@@ -66,7 +66,7 @@ s=store(); ok(s["LONGKEY"]["value"]=="L"*988 and s["LONGKEY"]["label"]=="envsecr
 t.send("q"); t.wait_exit()
 
 # 4 bracketed multi-line paste into value is refused, nothing runs
-reset(); t=TUI(); t.send("a",0.5); t.send("grp\t"); t.send("NEWK\t"); t.mark()
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("grp\t"); t.send("NEWK\t"); t.mark()
 t.send(PS+b"line1\nline2dy\nq"+PE,0.6)
 ok(t.seen("line break or a tab"), "bracketed multi-line paste refused")
 t.send("\x1b",0.4); t.send("q"); st=t.wait_exit()
@@ -80,18 +80,18 @@ t.send("\x1b",0.4); t.send("q"); t.wait_exit()
 s=store(); ok(s.get("BBB",{}).get("value")=="bbb-secret", "BBB untouched")
 
 # 6 tab inside a raw paste does not spill into the group
-reset(); t=TUI(); t.send("a",0.5); t.send("grp\t"); t.send("NEWK\t"); t.mark(); os.write(t.fd,b"ab\tcd"); t.read(0.5)
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("grp\t"); t.send("NEWK\t"); t.mark(); os.write(t.fd,b"ab\tcd"); t.read(0.5)
 ok(t.seen("line break or a tab"), "raw paste with tab refused")
 t.send("\x1b",0.4); t.send("q"); t.wait_exit(); ok("NEWK" not in store(), "nothing added")
 
 # 7 group validation
-reset(); t=TUI(); t.send("a",0.5); t.send("a]b\t"); t.send("XK\t"); t.send("val\r",0.6)
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("a]b\t"); t.send("XK\t"); t.send("val\r",0.6)
 ok(t.seen("one lowercase word"), "group with ] refused"); t.send("\x1b",0.4); t.send("q"); t.wait_exit(); ok("XK" not in store(), "not written")
 
 # 8 add of an existing name refused; uppercase group normalised
-reset(); t=TUI(); t.send("a",0.5); t.send("Cloud\t"); t.send("new_one\t"); t.send("v1\r",0.8)
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("Cloud\t"); t.send("new_one\t"); t.send("v1\r",0.8)
 s=store(); ok(s.get("NEW_ONE",{}).get("label")=="envsecret [cloud] NEW_ONE", "group lowercased, name normalised")
-t.send("a",0.5); t.send("x\t"); t.send("BBB\t"); t.send("v\r",0.6); ok(t.seen("already exists"), "existing name refused"); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
+t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("x\t"); t.send("BBB\t"); t.send("v\r",0.6); ok(t.seen("already exists"), "existing name refused"); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
 
 # 9 failed dump: no add possible
 reset(); t=TUI(env={"FAKE_DUMP_FAIL":"1"}); ok(t.seen("keychain not readable"), "title says keychain not readable")
@@ -99,7 +99,7 @@ t.send("a",0.6); ok(t.seen("nothing can be added"), "add refused"); t.send("q");
 ok(not any(x.startswith("add") for x in calls()), "no add call")
 
 # 10 typed accent refused
-reset(); t=TUI(); t.send("a",0.5); t.send("grp\t"); t.send("K\t"); t.mark(); t.send("p\xe4ss".encode(),0.4)
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("grp\t"); t.send("K\t"); t.mark(); t.send("p\xe4ss".encode(),0.4)
 ok(t.seen("plain ASCII only"), "non-ASCII refused with a message"); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
 
 # 11 pbcopy fallback wiped on ctrl-c and on hangup
@@ -114,7 +114,7 @@ for how in ("ctrl-c","sighup"):
 reset(); t=TUI(); t.send("/"); t.send("BBB\r"); t.send("\r",0.5)
 setsize(t.fd,6,12); os.kill(t.pid,signal.SIGWINCH); t.read(0.4); t.send("r",0.3)
 setsize(t.fd,30,100); os.kill(t.pid,signal.SIGWINCH); t.send("\x1b",0.4)
-t.send("a",0.5); t.send("grp")
+t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("grp")
 setsize(t.fd,10,30); os.kill(t.pid,signal.SIGWINCH); t.mark(); t.read(0.4); t.send("x",0.3)
 ok(t.seen("enlarge the terminal"), "form shows enlarge message when too small")
 setsize(t.fd,30,100); os.kill(t.pid,signal.SIGWINCH); t.read(0.4); t.mark(); t.send("\x15",0.3)
@@ -141,5 +141,12 @@ ok(not any(x.startswith("add") for x in calls()), "no rewrite")
 # 17 rename
 reset(); t=TUI(); t.send("/"); t.send("BBB\r"); t.send("e",0.5); t.send("\t"); t.send("\x15"); t.send("BBB2"); t.send("\x13",0.8); t.send("q"); t.wait_exit()
 s=store(); ok("BBB" not in s and s.get("BBB2",{}).get("value")=="bbb-secret", "rename moves the value and removes the old item")
+
+# 18 the list shows no value column; add fills in the group the cursor is in
+reset(); t=TUI(); ok(t.seen("flightr") and not t.seen("value") and not t.seen("*****"), "no value column on the list")
+t.send("/"); t.send("BBB\r"); t.send("a",0.5); t.send("NEWK\t"); t.send("v1\r",0.8); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
+s=store(); ok(s.get("NEWK",{}).get("label")=="envsecret [flightr] NEWK", "add from a flightr row fills in flightr and starts on the name")
+reset(); t=TUI(); t.send("/"); t.send("zzz\r"); t.send("a",0.5); t.send("grp\t"); t.send("K2\t"); t.send("v\r",0.8); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
+s=store(); ok(s.get("K2",{}).get("label")=="envsecret [grp] K2", "add from an empty list starts blank on the group")
 print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)
