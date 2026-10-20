@@ -2,7 +2,7 @@
 No keychain, no clipboard. Run: python3 tests/tui.py (exit 1 on any failure)."""
 import os, pty, sys, time, json, select, signal, fcntl, termios, struct
 HERE=os.path.dirname(os.path.abspath(__file__))
-import tempfile
+import tempfile, shutil, subprocess
 TMP=tempfile.mkdtemp(prefix="envsecret-tui-")
 ST=os.path.join(TMP,"store.json"); LOG=os.path.join(TMP,"calls.log")
 BASE={"LONGKEY":{"label":"envsecret [growth] LONGKEY","acct":"u","value":"L"*988,"cdat":"20260901000000"},
@@ -10,6 +10,9 @@ BASE={"LONGKEY":{"label":"envsecret [growth] LONGKEY","acct":"u","value":"L"*988
       "CCC":{"label":"envsecret [flight] CCC","acct":"u","value":"ccc","cdat":"20260903000000"}}
 def reset():
     json.dump(BASE,open(ST,"w")); open(LOG,"w").close()
+    shutil.rmtree(os.path.join(TMP,"icloud"),ignore_errors=True)
+    os.makedirs(os.path.join(TMP,"icloud"))
+    if os.path.exists(os.path.join(TMP,"sync-state.json")): os.remove(os.path.join(TMP,"sync-state.json"))
 def store(): return json.load(open(ST))
 def calls(): return open(LOG).read().splitlines()
 def setsize(fd,r,c): fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH",r,c,0,0))
@@ -148,5 +151,17 @@ t.send("/"); t.send("BBB\r"); t.send("a",0.5); t.send("NEWK\t"); t.send("v1\r",0
 s=store(); ok(s.get("NEWK",{}).get("label")=="envsecret [flightr] NEWK", "add from a flightr row fills in flightr and starts on the name")
 reset(); t=TUI(); t.send("/"); t.send("zzz\r"); t.send("a",0.5); t.send("grp\t"); t.send("K2\t"); t.send("v\r",0.8); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
 s=store(); ok(s.get("K2",{}).get("label")=="envsecret [grp] K2", "add from an empty list starts blank on the group")
+
+# 19 sync: --sync sets it up, then an add in the TUI goes out to the vault
+reset(); env=dict(os.environ, FAKE_STORE=ST, FAKE_LOG=LOG, FAKE_HOME=TMP, USER="u")
+r=subprocess.run([sys.executable,os.path.join(HERE,"launch.py"),"--sync"],env=env,capture_output=True,text=True)
+ok(r.returncode==0 and r.stdout.startswith("sync set up, 3 out"), f"--sync sets up and pushes: {r.stdout.splitlines()[:1]} {r.stderr.strip()}")
+t=TUI(); t.send("a",0.5); t.send("SYNCK\t"); t.mark(); t.send("v1\r",2.5)
+ok(t.seen("sync: 1 out"), "the add goes out, and says so"); t.send("q"); t.wait_exit()
+key=store()["envsecret.vault-key"]["value"]
+vault=os.path.join(TMP,"icloud","envsecret","vault.age")
+r=subprocess.run(["/opt/homebrew/bin/age","-d","-i","-",vault],input=key+"\n",capture_output=True,text=True)
+ok(r.returncode==0 and json.loads(r.stdout)["entries"].get("SYNCK",{}).get("value")=="v1", "the vault holds the new secret")
+reset()
 print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

@@ -3,7 +3,8 @@
 A curses TUI for the secrets in the macOS login keychain, so credentials stay
 out of `~/.zshrc` and out of every process's environment.
 
-Python 3 standard library only. One file, nothing to install beyond it.
+Python 3 standard library only. One file, nothing to install beyond it, unless
+you want sync between Macs, which needs `age`.
 
 ## Install
 
@@ -52,6 +53,56 @@ holds that copy, so something you copied since is left alone. That process
 does not depend on the TUI: quitting, `^c`, closing the window or a crash all
 leave the timer running. If `osascript` fails, the copy falls back to `pbcopy`,
 the message says so, and that copy is wiped on every way out of the TUI.
+
+## Sync between Macs
+
+The login keychain never leaves the Mac it is on, and the `security` CLI cannot
+write to iCloud Keychain. So sync goes through one file in iCloud Drive,
+`envsecret/vault.age`: every secret, encrypted with [age](https://age-encryption.org)
+to a key that is kept only in each Mac's login keychain. iCloud holds a file it
+cannot open. The keychain stays the store that the list and the shell helpers
+read; the vault only carries changes between Macs.
+
+```sh
+brew install age
+envsecret --sync                                        # first Mac: makes the key and the vault
+envsecret --key-export | ssh other-mac envsecret --key-import
+ssh other-mac envsecret --sync                          # or open the TUI there
+```
+
+Once a Mac has the key, the TUI syncs when it opens and after every add, edit
+or delete, and says on the bottom row what came in or went out. `envsecret
+--sync` does the same without the TUI, for a login item or a cron line. A Mac
+with no key and no vault never syncs and never mentions it.
+
+**Keep a copy of the key.** `envsecret --key-export` prints it. Without one of
+your Macs or that copy, the vault cannot be opened by anyone, you included.
+
+How it settles each secret:
+
+- Each Mac remembers, per name, the item's `mdat` and the vault entry's
+  revision as of its last sync (`sync-state.json` next to the config; it holds
+  no values). Whichever side no longer matches changed.
+- Changed on one side: that side wins. Changed on both: the newer write wins,
+  unless both hold the same thing, and the message names it.
+- A delete travels as an entry marked deleted. A name that is simply missing
+  from the vault is pushed again, never read as deleted, so a vault lost or
+  replaced in iCloud costs no secrets. An edit beats a delete.
+- If iCloud keeps two versions (`vault 2.age`), both are read, the newer entry
+  of each name wins, and the copy is removed once the merge is written.
+- A vault iCloud has not downloaded yet (`.vault.age.icloud`) is fetched with
+  `brctl download` first; it is never taken as "no vault".
+- Entries from the vault pass the same rules as the form (name, group, plain
+  ASCII) before anything is written to the keychain.
+
+The vault is written whole or not at all: `age` writes a temporary file next to
+it, which replaces it in one rename. The plaintext only ever passes through
+`age`'s stdin and stdout, and the key goes to `age` on stdin, never in `argv`.
+`age` is called by full path, from `/opt/homebrew/bin` or `/usr/local/bin`, or
+from `age = /path/to/age` in the config; `vault = path` there moves the vault.
+
+The added date is the keychain's own, so a secret pulled onto a Mac shows the
+day it arrived there.
 
 ## Columns
 
@@ -247,9 +298,11 @@ last commit was 2024-04-23 and the PR migrating off Apple's deprecated
 
 ```sh
 python3 tests/test_units.py   # parser, rules, quoting, config; no keychain
+python3 tests/test_sync.py    # two fake Macs and a temp folder for iCloud,
+                              # with the real age
 python3 tests/tui.py          # drives the real TUI in a pty against fake
                               # security, osascript and pbcopy
 ```
 
-Neither touches the keychain or the clipboard. Both run on the system
+None of them touches the keychain, the clipboard or iCloud. Both run on the system
 `/usr/bin/python3` as well as a current one.

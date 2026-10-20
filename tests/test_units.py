@@ -118,6 +118,8 @@ class Rules(unittest.TestCase):
         self.assertIsNone(E.unknown_option(["--list"]))
         self.assertIsNone(E.unknown_option(["--theme", "nord"]))
         self.assertIsNone(E.unknown_option(["--theme=nord"]))
+        for flag in ("--sync", "--key-export", "--key-import"):
+            self.assertIsNone(E.unknown_option([flag]))
         self.assertEqual(E.unknown_option(["--lsit"]), "--lsit")
 
     def test_tools_by_full_path(self):
