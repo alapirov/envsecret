@@ -64,7 +64,7 @@ cannot open. The keychain stays the store that the list and the shell helpers
 read; the vault only carries changes between Macs.
 
 ```sh
-brew install age
+brew install age                                        # or: sudo port install age
 envsecret --sync                                        # first Mac: makes the key and the vault
 envsecret --key-export | ssh other-mac envsecret --key-import
 ssh other-mac envsecret --sync                          # or open the TUI there
@@ -98,8 +98,9 @@ How it settles each secret:
 The vault is written whole or not at all: `age` writes a temporary file next to
 it, which replaces it in one rename. The plaintext only ever passes through
 `age`'s stdin and stdout, and the key goes to `age` on stdin, never in `argv`.
-`age` is called by full path, from `/opt/homebrew/bin` or `/usr/local/bin`, or
-from `age = /path/to/age` in the config; `vault = path` there moves the vault.
+`age` is called by full path, from `/opt/homebrew/bin`, `/usr/local/bin` or
+`/opt/local/bin` (MacPorts), or from `age = /path/to/age` in the config;
+`vault = path` there moves the vault.
 
 The added date is the keychain's own, so a secret pulled onto a Mac shows the
 day it arrived there.
