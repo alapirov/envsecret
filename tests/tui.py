@@ -152,7 +152,35 @@ s=store(); ok(s.get("NEWK",{}).get("label")=="envsecret [flightr] NEWK", "add fr
 reset(); t=TUI(); t.send("/"); t.send("zzz\r"); t.send("a",0.5); t.send("grp\t"); t.send("K2\t"); t.send("v\r",0.8); t.send("\x1b",0.4); t.send("q"); t.wait_exit()
 s=store(); ok(s.get("K2",{}).get("label")=="envsecret [grp] K2", "add from an empty list starts blank on the group")
 
-# 19 sync: --sync sets it up, then an add in the TUI goes out to the vault
+# 19 the group field offers existing groups: ←→ steps through them, tab takes one, ⌫ keeps what was typed
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.mark(); t.send("gr")
+ok(t.seen("owth"), "typing offers the rest of a matching group")
+t.send("\x15"); t.send("fl"); t.send("\x1bOC"); t.send("\t"); t.send("SUGK\t"); t.send("v\r",0.8)
+ok(store().get("SUGK",{}).get("label")=="envsecret [flightr] SUGK", "→ steps to the next group, tab takes it")
+t.send("\x1b",0.4); t.send("q"); t.wait_exit()
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("fligh"); t.send("\x7f"); t.send("\t"); t.send("PREK\t"); t.send("v\r",0.8)
+ok(store().get("PREK",{}).get("label")=="envsecret [fligh] PREK", "⌫ dismisses the offer and keeps a new group that prefixes an old one")
+t.send("\x1b",0.4); t.send("q"); t.wait_exit()
+reset(); t=TUI(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.mark(); t.send("grp")
+ok(t.seen("new group: grp"), "a group that is no existing one is announced as new")
+t.send("\x1b",0.4); t.send("q"); t.wait_exit()
+
+# 20 ^s still saves after ^z and fg: ncurses restores the tty modes it saved, so they must be the ones without IXON
+class Shell(TUI):
+    # an interactive zsh runs the TUI as a job, so ^z stops it and fg resumes it
+    def __init__(s):
+        e=dict(os.environ, FAKE_STORE=ST, FAKE_LOG=LOG, FAKE_HOME=TMP, TERM="xterm-256color", USER="u", PS1="$ ")
+        e.pop("ESCDELAY",None)
+        s.pid, s.fd = pty.fork()
+        if s.pid==0:
+            os.execve("/bin/zsh",["zsh","-f","-i"],e)
+        setsize(s.fd,30,100); s.buf=b""; s.read(0.5)
+        s.send(f"{sys.executable} {os.path.join(HERE,'launch.py')}\r",2.0)
+reset(); t=Shell(); t.send("a",0.5); t.send("\x1b[Z\x15"); t.send("grp\t"); t.send("ZK\t"); t.send("v1")
+t.send("\x1a",0.8); t.send("fg\r",1.0); t.send("\x13",1.0)
+ok("ZK" in store(), "^s saves after ^z and fg"); t.send("q",0.5); t.send("exit\r",0.5); t.wait_exit()
+
+# 21 sync: --sync sets it up, then an add in the TUI goes out to the vault
 reset(); env=dict(os.environ, FAKE_STORE=ST, FAKE_LOG=LOG, FAKE_HOME=TMP, USER="u")
 r=subprocess.run([sys.executable,os.path.join(HERE,"launch.py"),"--sync"],env=env,capture_output=True,text=True)
 ok(r.returncode==0 and r.stdout.startswith("sync set up, 3 out"), f"--sync sets up and pushes: {r.stdout.splitlines()[:1]} {r.stderr.strip()}")

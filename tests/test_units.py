@@ -138,6 +138,33 @@ class Config(unittest.TestCase):
             self.assertEqual(E.load_config(), {"sort": "new", "theme": "nord"})
 
 
+class GroupMatches(unittest.TestCase):
+    def test_prefix_ignoring_case(self):
+        groups = ["aws", "cloud", "cloudflare"]
+        self.assertEqual(E.group_matches(groups, " Clo"), ["cloud", "cloudflare"])
+        self.assertEqual(E.group_matches(groups, "cloudf"), ["cloudflare"])
+        self.assertEqual(E.group_matches(groups, "gcp"), [])
+
+
+class Layout(unittest.TestCase):
+    def items(self, *pairs):
+        return [E.Item(g, n, "") for g, n in pairs]
+
+    def test_columns_fit_what_is_listed(self):
+        shown = self.items(("growth", "LONGKEY"), ("ai", "BBB"))
+        self.assertEqual(E.layout(shown, 100, "name ▴", True), (6, 7))
+
+    def test_long_group_is_capped(self):
+        shown = self.items(("g" * 30, "BBB"))
+        self.assertEqual(E.layout(shown, 100, "name", True)[0], E.GROUP_MAX)
+
+    def test_narrow_window_keeps_room_for_names(self):
+        shown = self.items(("g" * 30, "N" * 30))
+        gw, nw = E.layout(shown, 30, "name", False)
+        self.assertEqual(nw, E.NAME_MIN)
+        self.assertEqual(E.MARK_W + gw + E.GAP + nw, 30 - 1 - E.RIGHT)
+
+
 class ShellAgreement(unittest.TestCase):
     """The zsh helpers' parser and index() must list the same secrets."""
     def test_same_rows(self):
