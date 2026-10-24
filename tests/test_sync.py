@@ -1,6 +1,6 @@
 """Sync between two Macs, each a fake keychain, through one vault in a temp
-folder standing in for iCloud Drive. Uses the real age from Homebrew; no real
-keychain, no real iCloud. Run: python3 tests/test_sync.py"""
+folder standing in for iCloud Drive. Uses the real age from Homebrew or
+MacPorts; no real keychain, no real iCloud. Run: python3 tests/test_sync.py"""
 import importlib.machinery, importlib.util, io, json, os, shutil, sys, tempfile, unittest
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
