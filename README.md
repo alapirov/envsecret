@@ -36,6 +36,14 @@ opening a card during a screen share shows stars; `c` works without revealing.
 
 In the form, `^u` clears a field and `^s` saves from any field.
 
+The group field offers the groups that already exist. Typing shows the first
+one that fits as faint text after the cursor, `←`/`→` step through the others,
+and `tab`, `enter` and `^s` all take what the field shows. The line underneath
+lists the matching groups, or says `new group: …` when the name is not one of
+them. The first `⌫` with an offer showing only dismisses it, so a new group
+that is the start of an old one, `cloud` beside `cloudflare`, can still be
+saved.
+
 `envsecret --list` prints group, name and date without the TUI, for scripts,
 in whichever order is saved. The columns are sized to the data and two spaces
 apart, and it exits non-zero if the keychain cannot be read. An unknown option
@@ -108,8 +116,8 @@ day it arrived there.
 
 | Column | |
 |---|---|
-| group | Blank where it repeats the row above, which happens in name order |
-| name | Clipped with `…` when the window is too narrow to hold it |
+| group | Blank where it repeats the row above, which happens in name order. As wide as the longest group, up to 20 characters |
+| name | As wide as the longest name. Clipped with `…` when the window is too narrow to hold it |
 | added | The date the item was created, `DD.MM.YYYY`, in local time |
 
 `s` cycles the order: group and name, newest first, oldest first. The header
@@ -118,8 +126,11 @@ cursor stays on the secret it was on. The order is saved alongside the theme,
 and `--list` follows it.
 
 Sorting runs off the raw keychain stamp rather than the shown date, so the
-display format is free. Below 58 columns the date column gives way to the
-names.
+display format is free. The columns are sized to what is listed, so on a
+wide window the date sits right after the longest name rather than out at the
+edge, and they hold still while scrolling. On a narrow window the group column
+gives way first, so the names keep at least 12 characters; below 48 columns
+the date column goes too.
 
 ## Colour schemes
 
@@ -242,7 +253,10 @@ window instead of crashing.
 **The tty's flow control is cleared while the TUI runs.** `curses.wrapper` puts
 the terminal in cbreak, which leaves `IXON` set, so the line discipline eats `^s`
 as XOFF and the form's save key never reaches `getch`. `run` clears `IXON` on the
-way in and puts the saved attributes back on the way out.
+way in and puts the saved attributes back on the way out. ncurses keeps its own
+copy of the terminal modes, taken before that, and puts it back when `^z` is
+followed by `fg`, so `run` saves the modes again with `def_prog_mode` once
+`IXON` is cleared; otherwise `^s` froze the terminal after a suspend.
 
 **Attributes are passed to `addstr`, never left on the window with
 `attron`.** A string holding any non-ASCII character goes out through curses'
